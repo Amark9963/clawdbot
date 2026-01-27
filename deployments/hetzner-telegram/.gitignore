@@ -1,0 +1,10 @@
+# Secrets - NEVER commit actual API keys
+auth-profiles.json
+clawdbot.service
+*.key
+*.pem
+*.env
+
+# Backup original files (keep templates only)
+*.bak
+*.orig

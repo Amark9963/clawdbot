@@ -1,0 +1,23 @@
+[Unit]
+Description=Clawdbot AI Assistant Gateway
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/clawdbot
+ExecStart=/usr/bin/node /root/clawdbot/dist/entry.js gateway
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+Environment="NODE_ENV=production"
+Environment="HOME=/root"
+Environment="DISPLAY=:99"
+Environment="TELEGRAM_BOT_TOKEN=YOUR_TELEGRAM_BOT_TOKEN"
+Environment="ANTHROPIC_API_KEY=YOUR_ANTHROPIC_API_KEY"
+Environment="OPENROUTER_API_KEY=YOUR_OPENROUTER_API_KEY"
+
+[Install]
+WantedBy=multi-user.target
