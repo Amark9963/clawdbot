@@ -158,11 +158,13 @@ ssh root@46.62.139.120 'npm update -g @anthropic-ai/clawdbot && systemctl restar
 
 ## ⚠️ Important Notes
 
-1. **Dynamic IP**: SSH is open to all IPs (user has dynamic IP)
-2. **Password Auth**: SSH uses password auth (secured by fail2ban)
+1. **Dynamic IP**: SSH is open to all IPs (secured by SSH keys + fail2ban)
+2. **SSH Key Auth**: SSH uses key-based authentication only (password auth disabled)
+   - SSH key location: `~/.ssh/id_ed25519` (local machine)
+   - Emergency restore: `ssh root@46.62.139.120 'cp /etc/ssh/sshd_config.backup /etc/ssh/sshd_config && systemctl restart ssh'`
 3. **Running as Root**: Clawdbot runs as root (acceptable since ports not exposed)
 4. **Config Sync**: Always commit configuration changes to this repo
-5. **Secrets**: Never commit actual API keys - use [auth-profiles.json.template](auth-profiles.json.template)
+5. **Secrets**: Never commit actual API keys - use templates
 
 ## 🐛 Troubleshooting
 
