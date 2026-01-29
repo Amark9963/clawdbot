@@ -60,6 +60,12 @@
         "mode": "cache-ttl",
         "ttl": "5m",
         "keepLastAssistants": 3
+      },
+      "compaction": {
+        "memoryFlush": {
+          "enabled": true,
+          "softThresholdTokens": 4000
+        }
       }
     }
   },

@@ -52,7 +52,11 @@ scp root@46.62.139.120:/etc/systemd/system/clawdbot.service .
 - Cost: $0.20 input / $1.00 output per 1M tokens
 - Context: 192k tokens
 - Features: Tool use, function calling
-- Session pruning: Enabled (prevents timeouts from large sessions)
+- **Session Management**:
+  - **Pruning**: Enabled - Trims old tool results every 5 minutes
+  - **Compaction**: Enabled - Summarizes old conversation when context is full
+  - **Memory Flush**: Enabled - Saves important context to disk before compaction
+  - Result: Long conversations work smoothly without timeouts or context loss
 
 **Previously tested:**
 - Claude Opus 4.5: $15/$75 per 1M tokens (too expensive)
