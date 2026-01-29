@@ -52,6 +52,7 @@ scp root@46.62.139.120:/etc/systemd/system/clawdbot.service .
 - Cost: $0.20 input / $1.00 output per 1M tokens
 - Context: 192k tokens
 - Features: Tool use, function calling
+- Session pruning: Enabled (prevents timeouts from large sessions)
 
 **Previously tested:**
 - Claude Opus 4.5: $15/$75 per 1M tokens (too expensive)
@@ -171,8 +172,9 @@ ssh root@46.62.139.120 'npm update -g @anthropic-ai/clawdbot && systemctl restar
 ### Bot Not Responding
 1. Check service: `systemctl status clawdbot.service`
 2. Check errors: `journalctl -u clawdbot.service -n 100`
-3. Bot may return "NO_REPLY" with long conversation history
-4. Clear session: Delete `.jsonl` files and restart
+3. Session too large (timeout):
+   - Session pruning is enabled to prevent this automatically
+   - If it still happens, clear session manually: `ssh root@46.62.139.120 'rm /root/.clawdbot/agents/main/sessions/*.jsonl && systemctl restart clawdbot.service'`
 
 ### Model Errors
 - "Unknown model": Check `models status` and [auth-profiles.json](auth-profiles.json)
