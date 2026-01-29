@@ -55,6 +55,11 @@
       },
       "model": {
         "primary": "openrouter/minimax/minimax-m2"
+      },
+      "contextPruning": {
+        "mode": "cache-ttl",
+        "ttl": "5m",
+        "keepLastAssistants": 3
       }
     }
   },
