@@ -1,9 +1,10 @@
 {
-  "name": "@clawdbot/line",
-  "version": "2026.1.25",
+  "name": "@openclaw/line",
+  "version": "2026.3.2",
+  "private": true,
+  "description": "OpenClaw LINE channel plugin",
   "type": "module",
-  "description": "Clawdbot LINE channel plugin",
-  "clawdbot": {
+  "openclaw": {
     "extensions": [
       "./index.ts"
     ],
@@ -18,12 +19,9 @@
       "quickstartAllowFrom": true
     },
     "install": {
-      "npmSpec": "@clawdbot/line",
+      "npmSpec": "@openclaw/line",
       "localPath": "extensions/line",
       "defaultChoice": "npm"
     }
-  },
-  "devDependencies": {
-    "clawdbot": "workspace:*"
   }
 }

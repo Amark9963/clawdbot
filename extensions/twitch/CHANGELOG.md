@@ -1,5 +1,41 @@
 # Changelog
 
+## 2026.3.2
+
+### Changes
+
+- Version alignment with core OpenClaw release numbers.
+
+## 2026.3.1
+
+### Changes
+
+- Version alignment with core OpenClaw release numbers.
+
+## 2026.2.26
+
+### Changes
+
+- Version alignment with core OpenClaw release numbers.
+
+## 2026.2.25
+
+### Changes
+
+- Version alignment with core OpenClaw release numbers.
+
+## 2026.2.24
+
+### Changes
+
+- Version alignment with core OpenClaw release numbers.
+
+## 2026.2.22
+
+### Changes
+
+- Version alignment with core OpenClaw release numbers.
+
 ## 2026.1.23
 
 ### Features
@@ -17,5 +53,5 @@
 ### Improvements
 
 - Added proper configuration schema with Zod validation
-- Added plugin descriptor (clawdbot.plugin.json)
+- Added plugin descriptor (openclaw.plugin.json)
 - Added comprehensive README and documentation

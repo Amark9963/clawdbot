@@ -1,10 +1,10 @@
 import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
 import type { TSchema } from "@sinclair/typebox";
 import type { MsgContext } from "../../auto-reply/templating.js";
-import type { ClawdbotConfig } from "../../config/config.js";
+import type { OpenClawConfig } from "../../config/config.js";
 import type { PollInput } from "../../polls.js";
 import type { GatewayClientMode, GatewayClientName } from "../../utils/message-channel.js";
-import type { NormalizedChatType } from "../chat-type.js";
+import type { ChatType } from "../chat-type.js";
 import type { ChatChannelId } from "../registry.js";
 import type { ChannelMessageActionName as ChannelMessageActionNameFromList } from "./message-action-names.js";
 
@@ -12,9 +12,11 @@ export type ChannelId = ChatChannelId | (string & {});
 
 export type ChannelOutboundTargetMode = "explicit" | "implicit" | "heartbeat";
 
-export type ChannelAgentTool = AgentTool<TSchema, unknown>;
+export type ChannelAgentTool = AgentTool<TSchema, unknown> & {
+  ownerOnly?: boolean;
+};
 
-export type ChannelAgentToolFactory = (params: { cfg?: ClawdbotConfig }) => ChannelAgentTool[];
+export type ChannelAgentToolFactory = (params: { cfg?: OpenClawConfig }) => ChannelAgentTool[];
 
 export type ChannelSetupInput = {
   name?: string;
@@ -125,6 +127,7 @@ export type ChannelAccountSnapshot = {
   botTokenSource?: string;
   appTokenSource?: string;
   credentialSource?: string;
+  secretSource?: string;
   audienceType?: string;
   audience?: string;
   webhookPath?: string;
@@ -139,6 +142,10 @@ export type ChannelAccountSnapshot = {
   audit?: unknown;
   application?: unknown;
   bot?: unknown;
+  publicKey?: string | null;
+  profile?: unknown;
+  channelAccessToken?: string;
+  channelSecret?: string;
 };
 
 export type ChannelLogSink = {
@@ -149,16 +156,20 @@ export type ChannelLogSink = {
 };
 
 export type ChannelGroupContext = {
-  cfg: ClawdbotConfig;
+  cfg: OpenClawConfig;
   groupId?: string | null;
   /** Human label for channel-like group conversations (e.g. #general). */
   groupChannel?: string | null;
   groupSpace?: string | null;
   accountId?: string | null;
+  senderId?: string | null;
+  senderName?: string | null;
+  senderUsername?: string | null;
+  senderE164?: string | null;
 };
 
 export type ChannelCapabilities = {
-  chatTypes: Array<NormalizedChatType | "thread">;
+  chatTypes: Array<ChatType | "thread">;
   polls?: boolean;
   reactions?: boolean;
   edit?: boolean;
@@ -182,7 +193,7 @@ export type ChannelSecurityDmPolicy = {
 };
 
 export type ChannelSecurityContext<ResolvedAccount = unknown> = {
-  cfg: ClawdbotConfig;
+  cfg: OpenClawConfig;
   accountId?: string | null;
   account: ResolvedAccount;
 };
@@ -190,13 +201,13 @@ export type ChannelSecurityContext<ResolvedAccount = unknown> = {
 export type ChannelMentionAdapter = {
   stripPatterns?: (params: {
     ctx: MsgContext;
-    cfg: ClawdbotConfig | undefined;
+    cfg: OpenClawConfig | undefined;
     agentId?: string;
   }) => string[];
   stripMentions?: (params: {
     text: string;
     ctx: MsgContext;
-    cfg: ClawdbotConfig | undefined;
+    cfg: OpenClawConfig | undefined;
     agentId?: string;
   }) => string;
 };
@@ -210,13 +221,23 @@ export type ChannelStreamingAdapter = {
 
 export type ChannelThreadingAdapter = {
   resolveReplyToMode?: (params: {
-    cfg: ClawdbotConfig;
+    cfg: OpenClawConfig;
     accountId?: string | null;
     chatType?: string | null;
   }) => "off" | "first" | "all";
+  /**
+   * When replyToMode is "off", allow explicit reply tags/directives to keep replyToId.
+   *
+   * Default in shared reply flow: true for known providers; per-channel opt-out supported.
+   */
+  allowExplicitReplyTagsWhenOff?: boolean;
+  /**
+   * Deprecated alias for allowExplicitReplyTagsWhenOff.
+   * Kept for compatibility with older extensions/docks.
+   */
   allowTagsWhenOff?: boolean;
   buildToolContext?: (params: {
-    cfg: ClawdbotConfig;
+    cfg: OpenClawConfig;
     accountId?: string | null;
     context: ChannelThreadingContext;
     hasRepliedRef?: { value: boolean };
@@ -228,6 +249,7 @@ export type ChannelThreadingContext = {
   From?: string;
   To?: string;
   ChatType?: string;
+  CurrentMessageId?: string | number;
   ReplyToId?: string;
   ReplyToIdFull?: string;
   ThreadLabel?: string;
@@ -238,6 +260,7 @@ export type ChannelThreadingToolContext = {
   currentChannelId?: string;
   currentChannelProvider?: ChannelId;
   currentThreadTs?: string;
+  currentMessageId?: string | number;
   replyToMode?: "off" | "first" | "all";
   hasRepliedRef?: { value: boolean };
   /**
@@ -262,7 +285,7 @@ export type ChannelMessagingAdapter = {
 };
 
 export type ChannelAgentPromptAdapter = {
-  messageToolHints?: (params: { cfg: ClawdbotConfig; accountId?: string | null }) => string[];
+  messageToolHints?: (params: { cfg: OpenClawConfig; accountId?: string | null }) => string[];
 };
 
 export type ChannelDirectoryEntryKind = "user" | "group" | "channel";
@@ -282,9 +305,15 @@ export type ChannelMessageActionName = ChannelMessageActionNameFromList;
 export type ChannelMessageActionContext = {
   channel: ChannelId;
   action: ChannelMessageActionName;
-  cfg: ClawdbotConfig;
+  cfg: OpenClawConfig;
   params: Record<string, unknown>;
+  mediaLocalRoots?: readonly string[];
   accountId?: string | null;
+  /**
+   * Trusted sender id from inbound context. This is server-injected and must
+   * never be sourced from tool/model-controlled params.
+   */
+  requesterSenderId?: string | null;
   gateway?: {
     url?: string;
     token?: string;
@@ -303,10 +332,10 @@ export type ChannelToolSend = {
 };
 
 export type ChannelMessageActionAdapter = {
-  listActions?: (params: { cfg: ClawdbotConfig }) => ChannelMessageActionName[];
+  listActions?: (params: { cfg: OpenClawConfig }) => ChannelMessageActionName[];
   supportsAction?: (params: { action: ChannelMessageActionName }) => boolean;
-  supportsButtons?: (params: { cfg: ClawdbotConfig }) => boolean;
-  supportsCards?: (params: { cfg: ClawdbotConfig }) => boolean;
+  supportsButtons?: (params: { cfg: OpenClawConfig }) => boolean;
+  supportsCards?: (params: { cfg: OpenClawConfig }) => boolean;
   extractToolSend?: (params: { args: Record<string, unknown> }) => ChannelToolSend | null;
   handleAction?: (ctx: ChannelMessageActionContext) => Promise<AgentToolResult<unknown>>;
 };
@@ -320,8 +349,23 @@ export type ChannelPollResult = {
 };
 
 export type ChannelPollContext = {
-  cfg: ClawdbotConfig;
+  cfg: OpenClawConfig;
   to: string;
   poll: PollInput;
   accountId?: string | null;
+  threadId?: string | null;
+  silent?: boolean;
+  isAnonymous?: boolean;
+};
+
+/** Minimal base for all channel probe results. Channel-specific probes extend this. */
+export type BaseProbeResult<TError = string | null> = {
+  ok: boolean;
+  error?: TError;
+};
+
+/** Minimal base for token resolution results. */
+export type BaseTokenResolution = {
+  token: string;
+  source: string;
 };

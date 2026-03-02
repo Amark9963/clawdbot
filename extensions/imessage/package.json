@@ -1,9 +1,10 @@
 {
-  "name": "@clawdbot/imessage",
-  "version": "2026.1.25",
+  "name": "@openclaw/imessage",
+  "version": "2026.3.2",
+  "private": true,
+  "description": "OpenClaw iMessage channel plugin",
   "type": "module",
-  "description": "Clawdbot iMessage channel plugin",
-  "clawdbot": {
+  "openclaw": {
     "extensions": [
       "./index.ts"
     ]

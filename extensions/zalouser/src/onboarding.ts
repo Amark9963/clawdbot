@@ -1,36 +1,74 @@
 import type {
   ChannelOnboardingAdapter,
   ChannelOnboardingDmPolicy,
-  ClawdbotConfig,
+  OpenClawConfig,
   WizardPrompter,
-} from "clawdbot/plugin-sdk";
+} from "openclaw/plugin-sdk";
 import {
   addWildcardAllowFrom,
   DEFAULT_ACCOUNT_ID,
+  formatResolvedUnresolvedNote,
+  mergeAllowFromEntries,
   normalizeAccountId,
   promptAccountId,
   promptChannelAccessConfig,
-} from "clawdbot/plugin-sdk";
-
+} from "openclaw/plugin-sdk";
 import {
   listZalouserAccountIds,
   resolveDefaultZalouserAccountId,
   resolveZalouserAccountSync,
   checkZcaAuthenticated,
 } from "./accounts.js";
-import { runZca, runZcaInteractive, checkZcaInstalled, parseJsonOutput } from "./zca.js";
 import type { ZcaFriend, ZcaGroup } from "./types.js";
+import { runZca, runZcaInteractive, checkZcaInstalled, parseJsonOutput } from "./zca.js";
 
 const channel = "zalouser" as const;
 
+function setZalouserAccountScopedConfig(
+  cfg: OpenClawConfig,
+  accountId: string,
+  defaultPatch: Record<string, unknown>,
+  accountPatch: Record<string, unknown> = defaultPatch,
+): OpenClawConfig {
+  if (accountId === DEFAULT_ACCOUNT_ID) {
+    return {
+      ...cfg,
+      channels: {
+        ...cfg.channels,
+        zalouser: {
+          ...cfg.channels?.zalouser,
+          enabled: true,
+          ...defaultPatch,
+        },
+      },
+    } as OpenClawConfig;
+  }
+  return {
+    ...cfg,
+    channels: {
+      ...cfg.channels,
+      zalouser: {
+        ...cfg.channels?.zalouser,
+        enabled: true,
+        accounts: {
+          ...cfg.channels?.zalouser?.accounts,
+          [accountId]: {
+            ...cfg.channels?.zalouser?.accounts?.[accountId],
+            enabled: cfg.channels?.zalouser?.accounts?.[accountId]?.enabled ?? true,
+            ...accountPatch,
+          },
+        },
+      },
+    },
+  } as OpenClawConfig;
+}
+
 function setZalouserDmPolicy(
-  cfg: ClawdbotConfig,
+  cfg: OpenClawConfig,
   dmPolicy: "pairing" | "allowlist" | "open" | "disabled",
-): ClawdbotConfig {
+): OpenClawConfig {
   const allowFrom =
-    dmPolicy === "open"
-      ? addWildcardAllowFrom(cfg.channels?.zalouser?.allowFrom)
-      : undefined;
+    dmPolicy === "open" ? addWildcardAllowFrom(cfg.channels?.zalouser?.allowFrom) : undefined;
   return {
     ...cfg,
     channels: {
@@ -41,7 +79,7 @@ function setZalouserDmPolicy(
         ...(allowFrom ? { allowFrom } : {}),
       },
     },
-  } as ClawdbotConfig;
+  } as OpenClawConfig;
 }
 
 async function noteZalouserHelp(prompter: WizardPrompter): Promise<void> {
@@ -53,17 +91,17 @@ async function noteZalouserHelp(prompter: WizardPrompter): Promise<void> {
       "1) Install zca-cli",
       "2) You'll scan a QR code with your Zalo app",
       "",
-      "Docs: https://docs.clawd.bot/channels/zalouser",
+      "Docs: https://docs.openclaw.ai/channels/zalouser",
     ].join("\n"),
     "Zalo Personal Setup",
   );
 }
 
 async function promptZalouserAllowFrom(params: {
-  cfg: ClawdbotConfig;
+  cfg: OpenClawConfig;
   prompter: WizardPrompter;
   accountId: string;
-}): Promise<ClawdbotConfig> {
+}): Promise<OpenClawConfig> {
   const { cfg, prompter, accountId } = params;
   const resolved = resolveZalouserAccountSync({ cfg, accountId });
   const existingAllowFrom = resolved.config.allowFrom ?? [];
@@ -75,19 +113,29 @@ async function promptZalouserAllowFrom(params: {
 
   const resolveUserId = async (input: string): Promise<string | null> => {
     const trimmed = input.trim();
-    if (!trimmed) return null;
-    if (/^\d+$/.test(trimmed)) return trimmed;
+    if (!trimmed) {
+      return null;
+    }
+    if (/^\d+$/.test(trimmed)) {
+      return trimmed;
+    }
     const ok = await checkZcaInstalled();
-    if (!ok) return null;
+    if (!ok) {
+      return null;
+    }
     const result = await runZca(["friend", "find", trimmed], {
       profile: resolved.profile,
       timeout: 15000,
     });
-    if (!result.ok) return null;
+    if (!result.ok) {
+      return null;
+    }
     const parsed = parseJsonOutput<ZcaFriend[]>(result.stdout);
     const rows = Array.isArray(parsed) ? parsed : [];
     const match = rows[0];
-    if (!match?.userId) return null;
+    if (!match?.userId) {
+      return null;
+    }
     if (rows.length > 1) {
       await prompter.note(
         `Multiple matches for "${trimmed}", using ${match.displayName ?? match.userId}.`,
@@ -114,140 +162,57 @@ async function promptZalouserAllowFrom(params: {
       );
       continue;
     }
-    const merged = [
-      ...existingAllowFrom.map((item) => String(item).trim()).filter(Boolean),
-      ...(results.filter(Boolean) as string[]),
-    ];
-    const unique = [...new Set(merged)];
-    if (accountId === DEFAULT_ACCOUNT_ID) {
-      return {
-        ...cfg,
-        channels: {
-          ...cfg.channels,
-          zalouser: {
-            ...cfg.channels?.zalouser,
-            enabled: true,
-            dmPolicy: "allowlist",
-            allowFrom: unique,
-          },
-        },
-      } as ClawdbotConfig;
-    }
-
-    return {
-      ...cfg,
-      channels: {
-        ...cfg.channels,
-        zalouser: {
-          ...cfg.channels?.zalouser,
-          enabled: true,
-          accounts: {
-            ...(cfg.channels?.zalouser?.accounts ?? {}),
-            [accountId]: {
-              ...(cfg.channels?.zalouser?.accounts?.[accountId] ?? {}),
-              enabled: cfg.channels?.zalouser?.accounts?.[accountId]?.enabled ?? true,
-              dmPolicy: "allowlist",
-              allowFrom: unique,
-            },
-          },
-        },
-      },
-    } as ClawdbotConfig;
+    const unique = mergeAllowFromEntries(existingAllowFrom, results.filter(Boolean) as string[]);
+    return setZalouserAccountScopedConfig(cfg, accountId, {
+      dmPolicy: "allowlist",
+      allowFrom: unique,
+    });
   }
 }
 
 function setZalouserGroupPolicy(
-  cfg: ClawdbotConfig,
+  cfg: OpenClawConfig,
   accountId: string,
   groupPolicy: "open" | "allowlist" | "disabled",
-): ClawdbotConfig {
-  if (accountId === DEFAULT_ACCOUNT_ID) {
-    return {
-      ...cfg,
-      channels: {
-        ...cfg.channels,
-        zalouser: {
-          ...cfg.channels?.zalouser,
-          enabled: true,
-          groupPolicy,
-        },
-      },
-    } as ClawdbotConfig;
-  }
-  return {
-    ...cfg,
-    channels: {
-      ...cfg.channels,
-      zalouser: {
-        ...cfg.channels?.zalouser,
-        enabled: true,
-        accounts: {
-          ...(cfg.channels?.zalouser?.accounts ?? {}),
-          [accountId]: {
-            ...(cfg.channels?.zalouser?.accounts?.[accountId] ?? {}),
-            enabled: cfg.channels?.zalouser?.accounts?.[accountId]?.enabled ?? true,
-            groupPolicy,
-          },
-        },
-      },
-    },
-  } as ClawdbotConfig;
+): OpenClawConfig {
+  return setZalouserAccountScopedConfig(cfg, accountId, {
+    groupPolicy,
+  });
 }
 
 function setZalouserGroupAllowlist(
-  cfg: ClawdbotConfig,
+  cfg: OpenClawConfig,
   accountId: string,
   groupKeys: string[],
-): ClawdbotConfig {
+): OpenClawConfig {
   const groups = Object.fromEntries(groupKeys.map((key) => [key, { allow: true }]));
-  if (accountId === DEFAULT_ACCOUNT_ID) {
-    return {
-      ...cfg,
-      channels: {
-        ...cfg.channels,
-        zalouser: {
-          ...cfg.channels?.zalouser,
-          enabled: true,
-          groups,
-        },
-      },
-    } as ClawdbotConfig;
-  }
-  return {
-    ...cfg,
-    channels: {
-      ...cfg.channels,
-      zalouser: {
-        ...cfg.channels?.zalouser,
-        enabled: true,
-        accounts: {
-          ...(cfg.channels?.zalouser?.accounts ?? {}),
-          [accountId]: {
-            ...(cfg.channels?.zalouser?.accounts?.[accountId] ?? {}),
-            enabled: cfg.channels?.zalouser?.accounts?.[accountId]?.enabled ?? true,
-            groups,
-          },
-        },
-      },
-    },
-  } as ClawdbotConfig;
+  return setZalouserAccountScopedConfig(cfg, accountId, {
+    groups,
+  });
 }
 
 async function resolveZalouserGroups(params: {
-  cfg: ClawdbotConfig;
+  cfg: OpenClawConfig;
   accountId: string;
   entries: string[];
 }): Promise<Array<{ input: string; resolved: boolean; id?: string }>> {
   const account = resolveZalouserAccountSync({ cfg: params.cfg, accountId: params.accountId });
-  const result = await runZca(["group", "list", "-j"], { profile: account.profile, timeout: 15000 });
-  if (!result.ok) throw new Error(result.stderr || "Failed to list groups");
-  const groups = (parseJsonOutput<ZcaGroup[]>(result.stdout) ?? []).filter(
-    (group) => Boolean(group.groupId),
+  const result = await runZca(["group", "list", "-j"], {
+    profile: account.profile,
+    timeout: 15000,
+  });
+  if (!result.ok) {
+    throw new Error(result.stderr || "Failed to list groups");
+  }
+  const groups = (parseJsonOutput<ZcaGroup[]>(result.stdout) ?? []).filter((group) =>
+    Boolean(group.groupId),
   );
   const byName = new Map<string, ZcaGroup[]>();
   for (const group of groups) {
     const name = group.name?.trim().toLowerCase();
-    if (!name) continue;
+    if (!name) {
+      continue;
+    }
     const list = byName.get(name) ?? [];
     list.push(group);
     byName.set(name, list);
@@ -255,8 +220,12 @@ async function resolveZalouserGroups(params: {
 
   return params.entries.map((input) => {
     const trimmed = input.trim();
-    if (!trimmed) return { input, resolved: false };
-    if (/^\d+$/.test(trimmed)) return { input, resolved: true, id: trimmed };
+    if (!trimmed) {
+      return { input, resolved: false };
+    }
+    if (/^\d+$/.test(trimmed)) {
+      return { input, resolved: true, id: trimmed };
+    }
     const matches = byName.get(trimmed.toLowerCase()) ?? [];
     const match = matches[0];
     return match?.groupId
@@ -270,15 +239,15 @@ const dmPolicy: ChannelOnboardingDmPolicy = {
   channel,
   policyKey: "channels.zalouser.dmPolicy",
   allowFromKey: "channels.zalouser.allowFrom",
-  getCurrent: (cfg) => ((cfg as ClawdbotConfig).channels?.zalouser?.dmPolicy ?? "pairing") as "pairing",
-  setPolicy: (cfg, policy) => setZalouserDmPolicy(cfg as ClawdbotConfig, policy),
+  getCurrent: (cfg) => (cfg.channels?.zalouser?.dmPolicy ?? "pairing") as "pairing",
+  setPolicy: (cfg, policy) => setZalouserDmPolicy(cfg, policy),
   promptAllowFrom: async ({ cfg, prompter, accountId }) => {
     const id =
       accountId && normalizeAccountId(accountId)
-        ? normalizeAccountId(accountId) ?? DEFAULT_ACCOUNT_ID
-        : resolveDefaultZalouserAccountId(cfg as ClawdbotConfig);
+        ? (normalizeAccountId(accountId) ?? DEFAULT_ACCOUNT_ID)
+        : resolveDefaultZalouserAccountId(cfg);
     return promptZalouserAllowFrom({
-      cfg: cfg as ClawdbotConfig,
+      cfg: cfg,
       prompter,
       accountId: id,
     });
@@ -289,10 +258,10 @@ export const zalouserOnboardingAdapter: ChannelOnboardingAdapter = {
   channel,
   dmPolicy,
   getStatus: async ({ cfg }) => {
-    const ids = listZalouserAccountIds(cfg as ClawdbotConfig);
+    const ids = listZalouserAccountIds(cfg);
     let configured = false;
     for (const accountId of ids) {
-      const account = resolveZalouserAccountSync({ cfg: cfg as ClawdbotConfig, accountId });
+      const account = resolveZalouserAccountSync({ cfg: cfg, accountId });
       const isAuth = await checkZcaAuthenticated(account.profile);
       if (isAuth) {
         configured = true;
@@ -307,7 +276,13 @@ export const zalouserOnboardingAdapter: ChannelOnboardingAdapter = {
       quickstartScore: configured ? 1 : 15,
     };
   },
-  configure: async ({ cfg, prompter, accountOverrides, shouldPromptAccountIds, forceAllowFrom }) => {
+  configure: async ({
+    cfg,
+    prompter,
+    accountOverrides,
+    shouldPromptAccountIds,
+    forceAllowFrom,
+  }) => {
     // Check zca is installed
     const zcaInstalled = await checkZcaInstalled();
     if (!zcaInstalled) {
@@ -316,7 +291,7 @@ export const zalouserOnboardingAdapter: ChannelOnboardingAdapter = {
           "The `zca` binary was not found in PATH.",
           "",
           "Install zca-cli, then re-run onboarding:",
-          "Docs: https://docs.clawd.bot/channels/zalouser",
+          "Docs: https://docs.openclaw.ai/channels/zalouser",
         ].join("\n"),
         "Missing Dependency",
       );
@@ -324,14 +299,12 @@ export const zalouserOnboardingAdapter: ChannelOnboardingAdapter = {
     }
 
     const zalouserOverride = accountOverrides.zalouser?.trim();
-    const defaultAccountId = resolveDefaultZalouserAccountId(cfg as ClawdbotConfig);
-    let accountId = zalouserOverride
-      ? normalizeAccountId(zalouserOverride)
-      : defaultAccountId;
+    const defaultAccountId = resolveDefaultZalouserAccountId(cfg);
+    let accountId = zalouserOverride ? normalizeAccountId(zalouserOverride) : defaultAccountId;
 
     if (shouldPromptAccountIds && !zalouserOverride) {
       accountId = await promptAccountId({
-        cfg: cfg as ClawdbotConfig,
+        cfg: cfg,
         prompter,
         label: "Zalo Personal",
         currentId: accountId,
@@ -340,7 +313,7 @@ export const zalouserOnboardingAdapter: ChannelOnboardingAdapter = {
       });
     }
 
-    let next = cfg as ClawdbotConfig;
+    let next = cfg;
     const account = resolveZalouserAccountSync({ cfg: next, accountId });
     const alreadyAuthenticated = await checkZcaAuthenticated(account.profile);
 
@@ -364,10 +337,7 @@ export const zalouserOnboardingAdapter: ChannelOnboardingAdapter = {
         });
 
         if (!result.ok) {
-          await prompter.note(
-            `Login failed: ${result.stderr || "Unknown error"}`,
-            "Error",
-          );
+          await prompter.note(`Login failed: ${result.stderr || "Unknown error"}`, "Error");
         } else {
           const isNowAuth = await checkZcaAuthenticated(account.profile);
           if (isNowAuth) {
@@ -387,38 +357,12 @@ export const zalouserOnboardingAdapter: ChannelOnboardingAdapter = {
     }
 
     // Enable the channel
-    if (accountId === DEFAULT_ACCOUNT_ID) {
-      next = {
-        ...next,
-        channels: {
-          ...next.channels,
-          zalouser: {
-            ...next.channels?.zalouser,
-            enabled: true,
-            profile: account.profile !== "default" ? account.profile : undefined,
-          },
-        },
-      } as ClawdbotConfig;
-    } else {
-      next = {
-        ...next,
-        channels: {
-          ...next.channels,
-          zalouser: {
-            ...next.channels?.zalouser,
-            enabled: true,
-            accounts: {
-              ...(next.channels?.zalouser?.accounts ?? {}),
-              [accountId]: {
-                ...(next.channels?.zalouser?.accounts?.[accountId] ?? {}),
-                enabled: true,
-                profile: account.profile,
-              },
-            },
-          },
-        },
-      } as ClawdbotConfig;
-    }
+    next = setZalouserAccountScopedConfig(
+      next,
+      accountId,
+      { profile: account.profile !== "default" ? account.profile : undefined },
+      { profile: account.profile, enabled: true },
+    );
 
     if (forceAllowFrom) {
       next = await promptZalouserAllowFrom({
@@ -431,7 +375,7 @@ export const zalouserOnboardingAdapter: ChannelOnboardingAdapter = {
     const accessConfig = await promptChannelAccessConfig({
       prompter,
       label: "Zalo groups",
-      currentPolicy: account.config.groupPolicy ?? "open",
+      currentPolicy: account.config.groupPolicy ?? "allowlist",
       currentEntries: Object.keys(account.config.groups ?? {}),
       placeholder: "Family, Work, 123456789",
       updatePrompt: Boolean(account.config.groups),
@@ -454,22 +398,13 @@ export const zalouserOnboardingAdapter: ChannelOnboardingAdapter = {
             const unresolved = resolved
               .filter((entry) => !entry.resolved)
               .map((entry) => entry.input);
-            keys = [
-              ...resolvedIds,
-              ...unresolved.map((entry) => entry.trim()).filter(Boolean),
-            ];
-            if (resolvedIds.length > 0 || unresolved.length > 0) {
-              await prompter.note(
-                [
-                  resolvedIds.length > 0 ? `Resolved: ${resolvedIds.join(", ")}` : undefined,
-                  unresolved.length > 0
-                    ? `Unresolved (kept as typed): ${unresolved.join(", ")}`
-                    : undefined,
-                ]
-                  .filter(Boolean)
-                  .join("\n"),
-                "Zalo groups",
-              );
+            keys = [...resolvedIds, ...unresolved.map((entry) => entry.trim()).filter(Boolean)];
+            const resolution = formatResolvedUnresolvedNote({
+              resolved: resolvedIds,
+              unresolved,
+            });
+            if (resolution) {
+              await prompter.note(resolution, "Zalo groups");
             }
           } catch (err) {
             await prompter.note(

@@ -1,9 +1,14 @@
 import type { ChannelType, Client, User } from "@buape/carbon";
 import type { HistoryEntry } from "../../auto-reply/reply/history.js";
 import type { ReplyToMode } from "../../config/config.js";
+import type { SessionBindingRecord } from "../../infra/outbound/session-binding-service.js";
 import type { resolveAgentRoute } from "../../routing/resolve-route.js";
 import type { DiscordChannelConfigResolved, DiscordGuildEntryResolved } from "./allow-list.js";
 import type { DiscordChannelInfo } from "./message-utils.js";
+import type { DiscordThreadBindingLookup } from "./reply-delivery.js";
+import type { DiscordSenderIdentity } from "./sender-identity.js";
+
+export type { DiscordSenderIdentity } from "./sender-identity.js";
 import type { DiscordThreadChannel } from "./threading.js";
 
 export type LoadedConfig = ReturnType<typeof import("../../config/config.js").loadConfig>;
@@ -14,7 +19,7 @@ export type DiscordMessageEvent = import("./listeners.js").DiscordMessageEvent;
 export type DiscordMessagePreflightContext = {
   cfg: LoadedConfig;
   discordConfig: NonNullable<
-    import("../../config/config.js").ClawdbotConfig["channels"]
+    import("../../config/config.js").OpenClawConfig["channels"]
   >["discord"];
   accountId: string;
   token: string;
@@ -25,13 +30,15 @@ export type DiscordMessagePreflightContext = {
   mediaMaxBytes: number;
   textLimit: number;
   replyToMode: ReplyToMode;
-  ackReactionScope: "all" | "direct" | "group-all" | "group-mentions";
+  ackReactionScope: "all" | "direct" | "group-all" | "group-mentions" | "off" | "none";
   groupPolicy: "open" | "disabled" | "allowlist";
 
   data: DiscordMessageEvent;
   client: Client;
   message: DiscordMessageEvent["message"];
+  messageChannelId: string;
   author: User;
+  sender: DiscordSenderIdentity;
 
   channelInfo: DiscordChannelInfo | null;
   channelName?: string;
@@ -46,6 +53,9 @@ export type DiscordMessagePreflightContext = {
   wasMentioned: boolean;
 
   route: ReturnType<typeof resolveAgentRoute>;
+  threadBinding?: SessionBindingRecord;
+  boundSessionKey?: string;
+  boundAgentId?: string;
 
   guildInfo: DiscordGuildEntryResolved | null;
   guildSlug: string;
@@ -74,6 +84,8 @@ export type DiscordMessagePreflightContext = {
   canDetectMention: boolean;
 
   historyEntry?: HistoryEntry;
+  threadBindings: DiscordThreadBindingLookup;
+  discordRestFetch?: typeof fetch;
 };
 
 export type DiscordMessagePreflightParams = {
@@ -90,11 +102,13 @@ export type DiscordMessagePreflightParams = {
   replyToMode: ReplyToMode;
   dmEnabled: boolean;
   groupDmEnabled: boolean;
-  groupDmChannels?: Array<string | number>;
-  allowFrom?: Array<string | number>;
+  groupDmChannels?: string[];
+  allowFrom?: string[];
   guildEntries?: Record<string, DiscordGuildEntryResolved>;
   ackReactionScope: DiscordMessagePreflightContext["ackReactionScope"];
   groupPolicy: DiscordMessagePreflightContext["groupPolicy"];
+  threadBindings: DiscordThreadBindingLookup;
+  discordRestFetch?: typeof fetch;
   data: DiscordMessageEvent;
   client: Client;
 };
