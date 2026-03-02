@@ -46,9 +46,6 @@
   },
   "agents": {
     "defaults": {
-      "models": {
-        "openrouter/minimax/minimax-m2": {}
-      },
       "maxConcurrent": 4,
       "subagents": {
         "maxConcurrent": 8
