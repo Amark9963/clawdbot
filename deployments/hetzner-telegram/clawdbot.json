@@ -1,7 +1,7 @@
 {
   "meta": {
-    "lastTouchedVersion": "2026.1.24-3",
-    "lastTouchedAt": "2026-01-26T12:19:56.327Z"
+    "lastTouchedVersion": "2026.3.2",
+    "lastTouchedAt": "2026-03-04T03:02:19.188Z"
   },
   "env": {
     "vars": {
@@ -33,7 +33,7 @@
             "input": ["text"],
             "cost": {
               "input": 0.2,
-              "output": 1.0,
+              "output": 1,
               "cacheRead": 0,
               "cacheWrite": 0
             },
@@ -46,12 +46,11 @@
   },
   "agents": {
     "defaults": {
-      "maxConcurrent": 4,
-      "subagents": {
-        "maxConcurrent": 8
-      },
       "model": {
         "primary": "openrouter/minimax/minimax-m2"
+      },
+      "memorySearch": {
+        "enabled": false
       },
       "contextPruning": {
         "mode": "cache-ttl",
@@ -59,10 +58,15 @@
         "keepLastAssistants": 3
       },
       "compaction": {
+        "mode": "safeguard",
         "memoryFlush": {
           "enabled": true,
           "softThresholdTokens": 4000
         }
+      },
+      "maxConcurrent": 4,
+      "subagents": {
+        "maxConcurrent": 8
       }
     }
   },
@@ -79,11 +83,24 @@
   },
   "commands": {
     "native": "auto",
-    "nativeSkills": "auto"
+    "nativeSkills": "auto",
+    "restart": true,
+    "ownerDisplay": "raw"
   },
-  "channels": {},
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "dmPolicy": "pairing",
+      "groupPolicy": "open",
+      "streaming": "off"
+    }
+  },
   "gateway": {
-    "mode": "local"
+    "mode": "local",
+    "auth": {
+      "mode": "token",
+      "token": "a492ff46659eecc75522fad1cfb60da788185208d4aacfed"
+    }
   },
   "plugins": {
     "entries": {
