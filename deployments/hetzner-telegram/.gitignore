@@ -1,6 +1,7 @@
 # Secrets - NEVER commit actual API keys
 auth-profiles.json
 clawdbot.service
+clawdbot.json
 *.key
 *.pem
 *.env

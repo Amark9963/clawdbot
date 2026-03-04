@@ -1,18 +1,8 @@
 {
-  "meta": {
-    "lastTouchedVersion": "2026.3.2",
-    "lastTouchedAt": "2026-03-04T03:02:19.188Z"
-  },
   "env": {
     "vars": {
       "DISPLAY": ":99"
     }
-  },
-  "wizard": {
-    "lastRunAt": "2026-01-26T04:03:02.884Z",
-    "lastRunVersion": "2026.1.24-3",
-    "lastRunCommand": "doctor",
-    "lastRunMode": "local"
   },
   "browser": {
     "executablePath": "/usr/bin/google-chrome-stable",
@@ -33,7 +23,7 @@
             "input": ["text"],
             "cost": {
               "input": 0.2,
-              "output": 1,
+              "output": 1.0,
               "cacheRead": 0,
               "cacheWrite": 0
             },
@@ -74,7 +64,7 @@
     "web": {
       "search": {
         "provider": "brave",
-        "apiKey": "BSAxTooYd35stFlnkcvrXgHIlZW2J6N"
+        "apiKey": "YOUR_BRAVE_API_KEY"
       }
     }
   },
@@ -84,23 +74,20 @@
   "commands": {
     "native": "auto",
     "nativeSkills": "auto",
-    "restart": true,
-    "ownerDisplay": "raw"
+    "restart": true
   },
   "channels": {
     "telegram": {
       "enabled": true,
       "dmPolicy": "pairing",
-      "groupPolicy": "open",
+      "groupPolicy": "allowlist",
+      "groupAllowFrom": [YOUR_TELEGRAM_USER_ID],
+      "allowFrom": [YOUR_TELEGRAM_USER_ID],
       "streaming": "off"
     }
   },
   "gateway": {
-    "mode": "local",
-    "auth": {
-      "mode": "token",
-      "token": "a492ff46659eecc75522fad1cfb60da788185208d4aacfed"
-    }
+    "mode": "local"
   },
   "plugins": {
     "entries": {
